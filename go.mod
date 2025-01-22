@@ -1,8 +1,6 @@
 module github.com/jasonlovesdoggo/abacus
 
-go 1.21.0
-
-toolchain go1.23.5
+go 1.18
 
 require (
 	github.com/JGLTechnologies/gin-rate-limit v1.5.4
@@ -54,3 +52,5 @@ require (
 	google.golang.org/protobuf v1.36.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/pelletier/go-toml/v2 => github.com/pelletier/go-toml/v2 v2.0.9
