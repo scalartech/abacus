@@ -3,8 +3,7 @@ runtime: go1
 build:
   commands:
     build:
-      - go mod download
-      - go build -v .
+      - go build -x .
 run:
   command: ./abacus
   network:
