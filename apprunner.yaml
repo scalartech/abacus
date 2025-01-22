@@ -1,9 +1,10 @@
-version: 1
+version: 1.0
 runtime: go1
 build:
   commands:
-    - go mod download
-    - go build -v .
+    build:
+      - go mod download
+      - go build -v .
 run:
   command: ./abacus
   network:
