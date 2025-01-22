@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	DocsUrl string = "https://jasoncameron.dev/abacus/"
+	DocsUrl string = "http://localhost:8080/abacus/"
 	Version string = "1.3.3"
 )
 
