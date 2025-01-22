@@ -3,7 +3,7 @@ runtime: go1
 build:
   commands:
     build:
-      - go build -x .
+      - go build .
 run:
   runtime-version: 1.18.10
   command: ./abacus
