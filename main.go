@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"log"
 	"net/http"
@@ -178,19 +179,40 @@ func main() {
 	r := CreateRouter()
 	// Set up autocert manager for SSL
 	certManager := autocert.Manager{
-		Prompt:     autocert.AcceptTOS,
-		HostPolicy: autocert.HostWhitelist("countr.click", "www.countr.click"),
-		Cache:      autocert.DirCache("certs"),
-	}
+        Prompt:     autocert.AcceptTOS,
+        HostPolicy: autocert.HostWhitelist("countr.click", "www.countr.click"),
+        Cache:      autocert.DirCache("certs"),
+    }
 
 	// Configure the HTTPS server
 	srv := &http.Server{
-		Addr:    ":https",
-		Handler: r,
-		TLSConfig: &tls.Config{
-			GetCertificate: certManager.GetCertificate,
-		},
-	}
+        Addr:    ":https",
+        Handler: r,
+        TLSConfig: &tls.Config{
+            GetConfigForClient: func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
+                log.Printf("TLS handshake from %s, SNI: %s, ALPN: %v", 
+                    hello.Conn.RemoteAddr(), hello.ServerName, hello.SupportedProtos)
+                
+                // Allow acme-tls/1 for Let's Encrypt challenges
+                var nextProtos []string
+                for _, p := range hello.SupportedProtos {
+                    if p == "acme-tls/1" {
+                        nextProtos = []string{"acme-tls/1"}
+                        break
+                    }
+                }
+                if nextProtos == nil {
+                    nextProtos = []string{"h2", "http/1.1"}
+                }
+
+                return &tls.Config{
+                    GetCertificate: certManager.GetCertificate,
+                    NextProtos:     nextProtos,
+                }, nil
+            },
+            MinVersion: tls.VersionTLS12,
+        },
+    }
 
 	// HTTP server to handle ACME challenges and redirect to HTTPS
 	go func() {
@@ -211,11 +233,18 @@ func main() {
 
 	// Start HTTPS server
 	go func() {
-		log.Printf("Starting HTTPS server on port 443")
-		if err := srv.ListenAndServeTLS("", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("HTTPS listen: %s\n", err)
-		}
-	}()
+        log.Printf("Starting HTTPS server on port 443")
+        if err := srv.ListenAndServeTLS("", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
+            log.Printf("HTTPS listen error: %s\n", err)
+            // Print more details about the error
+            if err, ok := err.(*tls.CertificateVerificationError); ok {
+                log.Printf("Certificate verification error: %v\n", err)
+                for _, cert := range err.UnverifiedCertificates {
+                    log.Printf("Unverified certificate: %s\n", cert.Subject)
+                }
+            }
+        }
+    }()
 
 	// Wait for interrupt signal to gracefully shutdown the server with
 	// a timeout of 5 seconds.
