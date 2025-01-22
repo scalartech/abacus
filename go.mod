@@ -1,6 +1,8 @@
 module github.com/jasonlovesdoggo/abacus
 
-go 1.18
+go 1.21.0
+
+toolchain go1.23.5
 
 require (
 	github.com/JGLTechnologies/gin-rate-limit v1.5.4
