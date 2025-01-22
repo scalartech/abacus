@@ -1,0 +1,8 @@
+version: 1.3.3
+runtime: go
+build:
+  commands:
+    - go mod download
+    - go build -v .
+run:
+  command: ./abacus
