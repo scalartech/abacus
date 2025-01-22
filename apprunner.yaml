@@ -5,6 +5,7 @@ build:
     build:
       - go build -x .
 run:
+  runtime-version: 1.18.10
   command: ./abacus
   network:
     port: 8080
