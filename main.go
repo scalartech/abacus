@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"log"
@@ -12,6 +13,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"golang.org/x/crypto/acme/autocert"
 
 	"github.com/alicebob/miniredis/v2"
 
@@ -174,16 +177,44 @@ func main() {
 	StartTime = time.Now()
 	// Initialize the Gin router
 	r := CreateRouter()
-	srv := &http.Server{ // #nosec G112 -- Due to the use of SSE endpoints, we cannot close the server early
-		Addr:    ":" + os.Getenv("PORT"),
-		Handler: r,
+	// Set up autocert manager for SSL
+	certManager := autocert.Manager{
+		Prompt:     autocert.AcceptTOS,
+		HostPolicy: autocert.HostWhitelist("countr.click", "www.countr.click"),
+		Cache:      autocert.DirCache("certs"),
 	}
-	fmt.Println("Listening on port " + os.Getenv("PORT"))
 
+	// Configure the HTTPS server
+	srv := &http.Server{
+		Addr:    ":https",
+		Handler: r,
+		TLSConfig: &tls.Config{
+			GetCertificate: certManager.GetCertificate,
+		},
+	}
+
+	// HTTP server to handle ACME challenges and redirect to HTTPS
 	go func() {
-		// service connections
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("listen: %s\n", err)
+		httpSrv := &http.Server{
+			Addr:    ":http",
+			Handler: certManager.HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				target := "https://" + r.Host + r.URL.Path
+				if len(r.URL.RawQuery) > 0 {
+					target += "?" + r.URL.RawQuery
+				}
+				http.Redirect(w, r, target, http.StatusMovedPermanently)
+			})),
+		}
+		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("HTTP server error: %v\n", err)
+		}
+	}()
+
+	// Start HTTPS server
+	go func() {
+		log.Printf("Starting HTTPS server on port 443")
+		if err := srv.ListenAndServeTLS("", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("HTTPS listen: %s\n", err)
 		}
 	}()
 
